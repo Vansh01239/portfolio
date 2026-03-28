@@ -33,6 +33,9 @@ const MemberSchema = new Schema<IMember>(
     { timestamps: true }
 );
 
+MemberSchema.index({ status: 1 });
+MemberSchema.index({ name: 1 });
+
 // Force Next.js HMR to recompile the Mongoose Schema on every save
 if (mongoose.models.Member) {
     delete mongoose.models.Member;

@@ -17,11 +17,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [user, setUser] = useState<any | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const fetchUser = async () => {
+    const fetchUser = async (force = false) => {
+        if (!force && (user || loading)) return;
+
         try {
+            setLoading(true);
             const res = await fetch("/api/auth/me");
-            const data = await res.json();
-            setUser(data.user);
+            if (res.ok) {
+                const data = await res.json();
+                setUser(data.user);
+            } else {
+                setUser(null);
+            }
         } catch (error) {
             setUser(null);
         } finally {

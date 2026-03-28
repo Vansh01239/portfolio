@@ -33,6 +33,10 @@ const ProjectSchema = new Schema<IProject>(
     { timestamps: true }
 );
 
+ProjectSchema.index({ status: 1 });
+ProjectSchema.index({ featured: 1 });
+ProjectSchema.index({ createdAt: -1 });
+
 // Force Next.js HMR to recompile the Mongoose Schema on every save
 if (mongoose.models.Project) {
     delete mongoose.models.Project;

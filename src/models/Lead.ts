@@ -21,5 +21,9 @@ const LeadSchema = new Schema<ILead>(
     { timestamps: true }
 );
 
+LeadSchema.index({ status: 1 });
+LeadSchema.index({ createdAt: -1 });
+LeadSchema.index({ email: 1 });
+
 export default (mongoose.models.Lead as Model<ILead>) ||
     mongoose.model<ILead>("Lead", LeadSchema);
