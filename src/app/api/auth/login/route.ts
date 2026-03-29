@@ -3,17 +3,37 @@ import { SignJWT } from "jose";
 import bcrypt from "bcryptjs";
 import dbConnect from "@/lib/mongodb";
 import Admin from "@/models/Admin";
+import { z } from "zod";
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "fallback_secret");
+const LoginSchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(1),
+});
 
 export async function POST(req: NextRequest) {
     try {
         await dbConnect();
-        const { email, password } = await req.json();
+
+        let body;
+        try {
+            body = await req.json();
+        } catch (e) {
+            return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+        }
+
+        // Validate input
+        const result = LoginSchema.safeParse(body);
+        if (!result.success) {
+            return NextResponse.json({ error: "Invalid email or password format" }, { status: 400 });
+        }
+
+        const { email, password } = result.data;
 
         const admin = await Admin.findOne({ email: email.toLowerCase() });
 
         if (admin && await bcrypt.compare(password, admin.password)) {
+            const secret = new TextEncoder().encode(process.env.JWT_SECRET || "fallback_secret_key_at_least_32_characters_long");
+
             const token = await new SignJWT({
                 email: admin.email,
                 role: admin.role,
@@ -22,7 +42,7 @@ export async function POST(req: NextRequest) {
                 .setProtectedHeader({ alg: "HS256" })
                 .setIssuedAt()
                 .setExpirationTime("24h")
-                .sign(JWT_SECRET);
+                .sign(secret);
 
             const response = NextResponse.json({ success: true, message: "Login successful" }, { status: 200 });
 
@@ -39,6 +59,10 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error("Login Error:", error);
+        return NextResponse.json({
+            error: "Internal Server Error",
+            message: error.message
+        }, { status: 500 });
     }
 }
