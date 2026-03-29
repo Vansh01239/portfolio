@@ -18,7 +18,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [loading, setLoading] = useState(true);
 
     const fetchUser = async (force = false) => {
-        if (!force && (user || loading)) return;
+        // Initial fetch should proceed even if loading is true
+        if (!force && user) return;
 
         try {
             setLoading(true);
