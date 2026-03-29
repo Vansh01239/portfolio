@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { SignJWT } from "jose";
 import bcrypt from "bcryptjs";
 import dbConnect from "@/lib/mongodb";
-import Admin from "@/models/Admin";
+import mongoose from "mongoose";
 import { z } from "zod";
 
-// Force Node.js runtime to ensure compatibility with bcryptjs and mongoose
+// Force Node.js runtime to ensure compatibility
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -14,59 +14,66 @@ const LoginSchema = z.object({
     password: z.string().min(1),
 });
 
-// Diagnostic GET to check if the endpoint is alive
-export async function GET() {
-    return NextResponse.json({
-        status: "alive",
-        env: {
-            hasMongo: !!process.env.MONGODB_URI,
-            hasJwt: !!process.env.JWT_SECRET,
-            nodeEnv: process.env.NODE_ENV
-        }
-    });
-}
-
 export async function POST(req: NextRequest) {
+    console.log("LOGIN_DEBUG: Request received at /api/auth/login");
+
     try {
-        console.log("Login POST request received");
-
-        if (!process.env.MONGODB_URI) {
-            return NextResponse.json({ error: "Configuration Error", message: "MONGODB_URI is not defined in Vercel environment" }, { status: 500 });
-        }
-
-        await dbConnect();
-        console.log("Database connected successfully");
-
+        // 1. Check Body Parsing
         let body;
         try {
             body = await req.json();
+            console.log("LOGIN_DEBUG: Body parsed successfully");
         } catch (e) {
+            console.error("LOGIN_DEBUG: Body parse error", e);
             return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
         }
 
+        // 2. Validate with Zod
         const result = LoginSchema.safeParse(body);
         if (!result.success) {
+            console.warn("LOGIN_DEBUG: Validation failed", result.error.issues);
             return NextResponse.json({ error: "Invalid format", details: result.error.issues }, { status: 400 });
         }
-
         const { email, password } = result.data;
-        console.log("Searching for admin:", email.toLowerCase());
 
-        const admin = await Admin.findOne({ email: email.toLowerCase() }).select("+password");
+        // 3. Database Connection
+        console.log("LOGIN_DEBUG: Connecting to DB...");
+        try {
+            await dbConnect();
+            console.log("LOGIN_DEBUG: DB Connected");
+        } catch (dbErr: any) {
+            console.error("LOGIN_DEBUG: DB Connection Error", dbErr);
+            return NextResponse.json({ error: "Database Connection Error", message: dbErr.message }, { status: 500 });
+        }
+
+        // 4. Model Retrieval (Safe approach)
+        console.log("LOGIN_DEBUG: Retrying Admin model...");
+        const Admin = mongoose.models.Admin || mongoose.model("Admin", new mongoose.Schema({
+            email: { type: String, required: true },
+            password: { type: String, required: true },
+            displayName: String,
+            role: String
+        }));
+
+        const admin = await Admin.findOne({ email: email.toLowerCase() });
+        console.log("LOGIN_DEBUG: Admin lookup finished. Admin found?", !!admin);
 
         if (!admin) {
-            console.warn("Admin not found:", email);
             return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
         }
 
+        // 5. Password Comparison
+        console.log("LOGIN_DEBUG: Comparing passwords...");
         const isMatch = await bcrypt.compare(password, admin.password);
+        console.log("LOGIN_DEBUG: Password match result:", isMatch);
+
         if (!isMatch) {
-            console.warn("Password mismatch for:", email);
             return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
         }
 
-        console.log("Password verified, signing JWT...");
-        const secret = new TextEncoder().encode(process.env.JWT_SECRET || "fallback_secret_key_at_least_32_characters_long");
+        // 6. JWT Signing
+        console.log("LOGIN_DEBUG: Signing JWT...");
+        const secret = new TextEncoder().encode(process.env.JWT_SECRET || "fallback_secret_key_at_least_32_chars");
 
         const token = await new SignJWT({
             email: admin.email,
@@ -78,24 +85,34 @@ export async function POST(req: NextRequest) {
             .setExpirationTime("24h")
             .sign(secret);
 
-        const response = NextResponse.json({ success: true, message: "Login successful", user: { email: admin.email, displayName: admin.displayName } }, { status: 200 });
+        const response = NextResponse.json({
+            success: true,
+            message: "Login successful",
+            user: { email: admin.email, displayName: admin.displayName }
+        });
 
         response.cookies.set("admin_token", token, {
             httpOnly: true,
-            secure: true, // Always true for Vercel
+            secure: true,
             sameSite: "lax",
-            maxAge: 60 * 60 * 24, // 24 hours
+            maxAge: 60 * 60 * 24,
             path: "/",
         });
 
-        console.log("Login successful, cookie set");
+        console.log("LOGIN_DEBUG: Response ready");
         return response;
-    } catch (error: any) {
-        console.error("CRITICAL LOGIN ERROR:", error);
+
+    } catch (criticalErr: any) {
+        console.error("LOGIN_DEBUG: CRITICAL ERROR", criticalErr);
         return NextResponse.json({
-            error: "Internal Server Error",
-            message: error.message,
-            stack: process.env.NODE_ENV === "development" ? error.stack : undefined
+            error: "Critical Server Error",
+            message: criticalErr.message,
+            step: "Final catch block"
         }, { status: 500 });
     }
+}
+
+// Keep GET for diagnostics
+export async function GET() {
+    return NextResponse.json({ status: "Login API is online", timestamp: new Date().toISOString() });
 }
