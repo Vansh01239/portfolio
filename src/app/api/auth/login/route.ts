@@ -12,6 +12,13 @@ const LoginSchema = z.object({
 
 export async function POST(req: NextRequest) {
     try {
+        if (!process.env.MONGODB_URI) {
+            return NextResponse.json({ error: "Configuration Error", message: "MONGODB_URI is not defined" }, { status: 500 });
+        }
+        if (!process.env.JWT_SECRET) {
+            console.warn("JWT_SECRET is not defined, using fallback. This is insecure for production.");
+        }
+
         await dbConnect();
 
         let body;
