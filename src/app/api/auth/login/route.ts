@@ -23,6 +23,8 @@ export async function GET() {
     });
 }
 
+import Admin from "@/models/Admin";
+
 export async function POST(req: NextRequest) {
     try {
         await dbConnect();
@@ -30,6 +32,7 @@ export async function POST(req: NextRequest) {
         let body;
         try {
             body = await req.json();
+            console.log(`[AUTH_DEBUG] Login attempt received`);
         } catch (e) {
             return NextResponse.json({ error: "Invalid JSON request body" }, { status: 400 });
         }
@@ -41,16 +44,8 @@ export async function POST(req: NextRequest) {
 
         const { email, password } = result.data;
         const normalizedEmail = email.toLowerCase().trim();
-        console.log(`[AUTH_DEBUG] Attempting login for: ${normalizedEmail}`);
 
-        // Ensure Admin model is retrieved correctly
-        const Admin = mongoose.models.Admin || mongoose.model("Admin", new mongoose.Schema({
-            email: { type: String, required: true, unique: true, lowercase: true },
-            password: { type: String, required: true },
-            displayName: String,
-            role: String
-        }, { timestamps: true }));
-
+        // Safe model lookup
         const admin = await Admin.findOne({ email: normalizedEmail });
 
         if (!admin) {
