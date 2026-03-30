@@ -5,23 +5,27 @@ const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "productio
 
 export async function GET(req: NextRequest) {
     try {
-        const token = req.cookies.get("admin_token")?.value;
+        const tokenTokenObj = req.cookies.get("admin_token");
+        const token = tokenTokenObj?.value;
+        console.log(`[AUTH_ME_DEBUG] Token found: ${!!token}`);
 
         if (!token) {
             return NextResponse.json({ user: null }, { status: 200 });
         }
 
         const { payload } = await jwtVerify(token, JWT_SECRET);
+        console.log(`[AUTH_ME_DEBUG] Token verified for: ${payload.email}`);
 
         return NextResponse.json({
             user: {
-                uid: "admin",
+                uid: payload.id || "admin",
                 email: payload.email,
                 displayName: payload.displayName || "Admin User"
             }
         }, { status: 200 });
 
-    } catch (error) {
+    } catch (error: any) {
+        console.error(`[AUTH_ME_DEBUG] Token verification failed: ${error.message}`);
         return NextResponse.json({ user: null }, { status: 200 });
     }
 }

@@ -40,25 +40,33 @@ export async function POST(req: NextRequest) {
         }
 
         const { email, password } = result.data;
+        const normalizedEmail = email.toLowerCase().trim();
+        console.log(`[AUTH_DEBUG] Attempting login for: ${normalizedEmail}`);
 
-        // Use a dynamic import or ensure model registration
+        // Ensure Admin model is retrieved correctly
         const Admin = mongoose.models.Admin || mongoose.model("Admin", new mongoose.Schema({
-            email: { type: String, required: true, unique: true },
+            email: { type: String, required: true, unique: true, lowercase: true },
             password: { type: String, required: true },
             displayName: String,
             role: String
-        }));
+        }, { timestamps: true }));
 
-        const admin = await Admin.findOne({ email: email.toLowerCase() });
+        const admin = await Admin.findOne({ email: normalizedEmail });
 
         if (!admin) {
+            console.warn(`[AUTH_DEBUG] No admin found for: ${normalizedEmail}`);
             return NextResponse.json({ error: "Access denied. Invalid credentials." }, { status: 401 });
         }
 
+        console.log(`[AUTH_DEBUG] Admin found. Comparing passwords...`);
         const isMatch = await bcrypt.compare(password, admin.password);
+
         if (!isMatch) {
+            console.warn(`[AUTH_DEBUG] Password mismatch for: ${normalizedEmail}`);
             return NextResponse.json({ error: "Access denied. Invalid credentials." }, { status: 401 });
         }
+
+        console.log(`[AUTH_DEBUG] Authentication successful for: ${normalizedEmail}`);
 
         // Generate JWT
         const token = await new SignJWT({
@@ -82,15 +90,19 @@ export async function POST(req: NextRequest) {
             }
         });
 
-        // Set secure cookie
+        // Set secure cookie - explicitly false for localhost dev to prevent rejection
+        const isProduction = process.env.NODE_ENV === "production";
+        console.log(`[AUTH_DEBUG] Setting cookie. Production mode: ${isProduction}`);
+
         response.cookies.set("admin_token", token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
+            secure: isProduction, // Must be false for http://localhost
             sameSite: "lax",
             maxAge: 60 * 60 * 24, // 24 hours
             path: "/",
         });
 
+        console.log("[AUTH_DEBUG] Cookie set successfully in response");
         return response;
 
     } catch (error: any) {
