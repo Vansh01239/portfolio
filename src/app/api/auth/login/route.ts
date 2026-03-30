@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { SignJWT } from "jose";
 import bcrypt from "bcryptjs";
 import dbConnect from "@/lib/mongodb";
-import mongoose from "mongoose";
+import Admin from "@/models/Admin";
 import { z } from "zod";
 
-// Force Node.js runtime for compatibility with bcryptjs and mongoose
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -17,26 +16,19 @@ const LoginSchema = z.object({
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "production_ready_fallback_secret_at_least_32_chars");
 
 export async function GET() {
-    return NextResponse.json({
-        status: "Login API is online",
-        timestamp: new Date().toISOString()
-    });
+    return NextResponse.json({ status: "Login API is online" });
 }
 
-import Admin from "@/models/Admin";
-
 export async function POST(req: NextRequest) {
+    let currentStep = "INITIALIZATION";
     try {
+        currentStep = "DB_CONNECT";
         await dbConnect();
 
-        let body;
-        try {
-            body = await req.json();
-            console.log(`[AUTH_DEBUG] Login attempt received`);
-        } catch (e) {
-            return NextResponse.json({ error: "Invalid JSON request body" }, { status: 400 });
-        }
+        currentStep = "BODY_PARSE";
+        const body = await req.json();
 
+        currentStep = "VALIDATION";
         const result = LoginSchema.safeParse(body);
         if (!result.success) {
             return NextResponse.json({ error: "Validation failed", details: result.error.issues }, { status: 400 });
@@ -45,25 +37,21 @@ export async function POST(req: NextRequest) {
         const { email, password } = result.data;
         const normalizedEmail = email.toLowerCase().trim();
 
-        // Safe model lookup
+        currentStep = "ADMIN_LOOKUP";
         const admin = await Admin.findOne({ email: normalizedEmail });
 
         if (!admin) {
-            console.warn(`[AUTH_DEBUG] No admin found for: ${normalizedEmail}`);
             return NextResponse.json({ error: "Access denied. Invalid credentials." }, { status: 401 });
         }
 
-        console.log(`[AUTH_DEBUG] Admin found. Comparing passwords...`);
+        currentStep = "BCRYPT_COMPARE";
         const isMatch = await bcrypt.compare(password, admin.password);
 
         if (!isMatch) {
-            console.warn(`[AUTH_DEBUG] Password mismatch for: ${normalizedEmail}`);
             return NextResponse.json({ error: "Access denied. Invalid credentials." }, { status: 401 });
         }
 
-        console.log(`[AUTH_DEBUG] Authentication successful for: ${normalizedEmail}`);
-
-        // Generate JWT
+        currentStep = "JWT_SIGNING";
         const token = await new SignJWT({
             email: admin.email,
             role: admin.role,
@@ -78,32 +66,25 @@ export async function POST(req: NextRequest) {
         const response = NextResponse.json({
             success: true,
             message: "Authentication successful",
-            user: {
-                email: admin.email,
-                displayName: admin.displayName,
-                role: admin.role
-            }
+            user: { email: admin.email, displayName: admin.displayName, role: admin.role }
         });
 
-        // Set secure cookie - explicitly false for localhost dev to prevent rejection
-        const isProduction = process.env.NODE_ENV === "production";
-        console.log(`[AUTH_DEBUG] Setting cookie. Production mode: ${isProduction}`);
-
+        currentStep = "SET_COOKIE";
         response.cookies.set("admin_token", token, {
             httpOnly: true,
-            secure: isProduction, // Must be false for http://localhost
+            secure: process.env.NODE_ENV === "production",
             sameSite: "lax",
-            maxAge: 60 * 60 * 24, // 24 hours
+            maxAge: 60 * 60 * 24,
             path: "/",
         });
 
-        console.log("[AUTH_DEBUG] Cookie set successfully in response");
         return response;
 
     } catch (error: any) {
-        console.error("CRITICAL_AUTH_ERROR:", error);
+        console.error(`CRITICAL_AUTH_ERROR AT ${currentStep}:`, error);
         return NextResponse.json({
             error: "System Integrity Failure",
+            step: currentStep,
             message: error.message
         }, { status: 500 });
     }
