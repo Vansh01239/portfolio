@@ -12,7 +12,7 @@ const nextConfig = {
             },
         ],
     },
-    serverExternalPackages: ["mongoose"],
+    // If the 500 persists, we will re-inject mongoose with the exactly matching key for this environment
 };
 
 export default nextConfig;
