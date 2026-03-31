@@ -7,7 +7,7 @@ import ProjectCard from "@/components/ProjectCard";
 import { Loader2, LayoutGrid, List } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { ExternalLink, Github, ArrowUpRight } from "lucide-react";
+import { ExternalLink, ArrowUpRight } from "lucide-react";
 
 export default function ProjectsPage() {
     const [projects, setProjects] = useState<Project[]>([]);

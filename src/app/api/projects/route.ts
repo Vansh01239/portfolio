@@ -8,10 +8,10 @@ const ProjectSchema = z.object({
     title: z.string().min(3),
     description: z.string().min(10),
     techStack: z.array(z.string()),
-    imageUrl: z.string().url().optional().or(z.literal("")),
+    imageUrl: z.string().optional().or(z.literal("")),
     links: z.object({
-        github: z.string().url().optional().or(z.literal("")),
-        demo: z.string().url().optional().or(z.literal("")),
+        github: z.string().optional().or(z.literal("")),
+        demo: z.string().optional().or(z.literal("")),
     }),
     featured: z.boolean().default(false),
     status: z.enum(["published", "draft"]).default("published"),
@@ -41,15 +41,14 @@ export async function POST(req: NextRequest) {
         await dbConnect();
         const body = await req.json();
 
-        // Validate input
-        const validatedData = ProjectSchema.parse(body);
+        const result = ProjectSchema.safeParse(body);
+        if (!result.success) {
+            return NextResponse.json({ error: "Validation failed", details: result.error.flatten() }, { status: 400 });
+        }
 
-        const project = await Project.create(validatedData);
+        const project = await Project.create(result.data);
         return NextResponse.json(project, { status: 201 });
     } catch (error: any) {
-        if (error instanceof z.ZodError) {
-            return NextResponse.json({ error: error.issues }, { status: 400 });
-        }
         return NextResponse.json({ error: error.message }, { status: 400 });
     }
 }

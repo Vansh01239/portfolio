@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Project, Member } from "@/types";
-import { Plus, Edit, Trash2, ExternalLink, Github, Loader2, Copy, Star, Eye, EyeOff, Search, LayoutGrid, List, StarOff } from "lucide-react";
+import { Plus, Edit, Trash2, ExternalLink, Loader2, Copy, Star, Eye, EyeOff, Search, LayoutGrid, List, StarOff } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Modal from "@/components/Modal";
@@ -479,8 +479,8 @@ export default function ProjectsManager() {
                                                 );
                                             }}
                                             className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold transition-all ${isSelected
-                                                    ? "bg-accent text-white"
-                                                    : "bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white"
+                                                ? "bg-accent text-white"
+                                                : "bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white"
                                                 }`}
                                         >
                                             <div className="relative h-5 w-5 overflow-hidden rounded-full">

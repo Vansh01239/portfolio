@@ -9,11 +9,11 @@ const MemberSchema = z.object({
     bio: z.string().min(10),
     skills: z.array(z.string()),
     status: z.enum(["active", "inactive"]).default("active"),
-    imageUrl: z.string().url().optional().or(z.literal("")),
+    imageUrl: z.string().optional().or(z.literal("")),
     socialLinks: z.object({
-        github: z.string().url().optional().or(z.literal("")),
-        linkedin: z.string().url().optional().or(z.literal("")),
-        twitter: z.string().url().optional().or(z.literal("")),
+        github: z.string().optional().or(z.literal("")),
+        linkedin: z.string().optional().or(z.literal("")),
+        twitter: z.string().optional().or(z.literal("")),
     }),
 });
 
@@ -32,14 +32,14 @@ export async function POST(req: NextRequest) {
         await dbConnect();
         const body = await req.json();
 
-        const validatedData = MemberSchema.parse(body);
+        const result = MemberSchema.safeParse(body);
+        if (!result.success) {
+            return NextResponse.json({ error: "Validation failed", details: result.error.flatten() }, { status: 400 });
+        }
 
-        const member = await Member.create(validatedData);
+        const member = await Member.create(result.data);
         return NextResponse.json(member, { status: 201 });
     } catch (error: any) {
-        if (error instanceof z.ZodError) {
-            return NextResponse.json({ error: error.issues }, { status: 400 });
-        }
         return NextResponse.json({ error: error.message }, { status: 400 });
     }
 }

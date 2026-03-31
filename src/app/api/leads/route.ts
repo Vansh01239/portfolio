@@ -5,7 +5,7 @@ import { z } from "zod";
 
 const LeadSchema = z.object({
     name: z.string().min(2),
-    email: z.string().email(),
+    email: z.string().min(1).email(),
     message: z.string().min(5),
     status: z.enum(["new", "read", "archived"]).default("new"),
 });
@@ -25,14 +25,14 @@ export async function POST(req: NextRequest) {
         await dbConnect();
         const body = await req.json();
 
-        const validatedData = LeadSchema.parse(body);
+        const result = LeadSchema.safeParse(body);
+        if (!result.success) {
+            return NextResponse.json({ error: "Validation failed", details: result.error.flatten() }, { status: 400 });
+        }
 
-        const lead = await Lead.create(validatedData);
+        const lead = await Lead.create(result.data);
         return NextResponse.json(lead, { status: 201 });
     } catch (error: any) {
-        if (error instanceof z.ZodError) {
-            return NextResponse.json({ error: error.issues }, { status: 400 });
-        }
         return NextResponse.json({ error: error.message }, { status: 400 });
     }
 }
